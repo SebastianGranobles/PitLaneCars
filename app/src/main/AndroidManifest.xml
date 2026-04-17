@@ -2,22 +2,30 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- PERMISOS -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- RF-9 y RF-10: Permisos de Cámara -->
     <uses-permission android:name="android.permission.CAMERA" />
-    <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+
+    <!-- Permiso para guardar PDFs en Descargas -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
-        android:icon="@mipmap/ic_launcher"
-        android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher_round"
+        android:icon="@mipmap/ic_launcher2"
+        android:roundIcon="@mipmap/ic_launcher2_round"
+        android:label="PIT-LANE"
         android:supportsRtl="true"
         android:theme="@style/Theme.Parcial_SebastianGranoblesArdila"
         tools:targetApi="31">
+
+        <!-- Servicio de Notificaciones Firebase -->
         <service
             android:name=".utils.MyFirebaseMessagingService"
             android:exported="false">
@@ -26,7 +34,7 @@
             </intent-filter>
         </service>
 
-        <!-- CONFIGURACIÓN PARA PROVEER ARCHIVOS DE FOTOS -->
+        <!-- CONFIGURACIÓN PARA PROVEER ARCHIVOS DE FOTOS Y PDF -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="com.example.parcial_sebastiangranoblesardila.fileprovider"
@@ -37,6 +45,7 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
+        <!-- ACTIVIDAD PRINCIPAL -->
         <activity
             android:name=".MainActivity"
             android:exported="true"

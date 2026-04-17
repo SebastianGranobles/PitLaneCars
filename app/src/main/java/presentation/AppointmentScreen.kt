@@ -1,19 +1,14 @@
 package com.example.parcial_sebastiangranoblesardila.presentation
 
-import android.Manifest
 import android.content.Context
 import android.content.Intent
-import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
-import android.net.Uri
 import android.os.Environment
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.forEach
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -21,8 +16,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.AddAPhoto
-import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.TwoWheeler
 import androidx.compose.material3.*
@@ -31,10 +24,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -91,7 +82,6 @@ fun AppointmentScreen(navController: NavController, userViewModel: UserViewModel
     var brand by remember { mutableStateOf("") }
     var model by remember { mutableStateOf("") }
     var year by remember { mutableStateOf("") }
-    var displacement by remember { mutableStateOf("") }
     var mileage by remember { mutableStateOf("") }
     var clientName by remember { mutableStateOf("") }
     var phone1 by remember { mutableStateOf("") }
@@ -138,22 +128,25 @@ fun AppointmentScreen(navController: NavController, userViewModel: UserViewModel
                 OutlinedTextField(model, { model = it }, label = { Text("Referencia") }, modifier = Modifier.weight(1f), colors = getTextFieldColors(AppRed))
             }
 
+            // --- NUEVOS CAMPOS RECUPERADOS ---
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(year, { if (it.length <= 4) year = it }, label = { Text("Año") }, modifier = Modifier.weight(1f), colors = getTextFieldColors(AppRed), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                OutlinedTextField(mileage, { mileage = it }, label = { Text("Kilometraje") }, modifier = Modifier.weight(1f), colors = getTextFieldColors(AppRed), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+            }
+
             SectionTitle("2. DATOS DEL CLIENTE", AppRed)
             OutlinedTextField(clientName, { clientName = it }, label = { Text("Nombre Cliente *") }, modifier = Modifier.fillMaxWidth(), colors = getTextFieldColors(AppRed))
-            OutlinedTextField(email, { email = it }, label = { Text("Correo Electrónico (Para PDF) *") }, modifier = Modifier.fillMaxWidth(), colors = getTextFieldColors(AppRed), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))
+            OutlinedTextField(email, { email = it }, label = { Text("Correo Electrónico (Referencia)") }, modifier = Modifier.fillMaxWidth(), colors = getTextFieldColors(AppRed), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))
             OutlinedTextField(phone1, { if (it.length <= 10) phone1 = it }, label = { Text("Celular *") }, modifier = Modifier.fillMaxWidth(), colors = getTextFieldColors(AppRed), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone))
 
             SectionTitle("3. SERVICIOS (${vehicleType.uppercase()})", AppRed)
 
-            // --- ORGANIZACIÓN 2 EN 2 ---
             val categories = currentPrices.keys.toList()
             for (i in categories.indices step 2) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // Categoría 1
                     Column(modifier = Modifier.weight(1f)) {
                         ServiceCategory(categories[i], currentPrices[categories[i]]!!, selectedServices, AppRed, currencyFormat)
                     }
-                    // Categoría 2 (Si existe)
                     if (i + 1 < categories.size) {
                         Column(modifier = Modifier.weight(1f)) {
                             ServiceCategory(categories[i+1], currentPrices[categories[i+1]]!!, selectedServices, AppRed, currencyFormat)
@@ -180,73 +173,108 @@ fun AppointmentScreen(navController: NavController, userViewModel: UserViewModel
                 onClick = {
                     val now = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date())
                     val appointment = Appointment(
-                        clientName = "$clientName | $vehicleType",
-                        phone1 = phone1, plate = plate, brand = brand, model = model,
-                        displacement = displacement, year = year, mileage = mileage,
-                        mechanic = selectedMechanic, problemDescription = "Vehículo: $vehicleType",
+                        clientName = clientName,
+                        phone1 = phone1,
+                        plate = plate,
+                        brand = brand,
+                        model = model,
+                        year = year,
+                        mileage = mileage,
+                        mechanic = selectedMechanic,
+                        problemDescription = "Vehículo: $vehicleType",
                         selectedServices = selectedServices.toList(),
                         laborCost = laborCost.toDoubleOrNull() ?: 0.0,
                         partsCost = servicesTotal,
                         totalCost = totalToPay,
-                        entryDate = now, status = "En Taller"
+                        entryDate = now,
+                        status = "Cerrada"
                     )
 
-                    // Lógica: Guardar en DB y Enviar PDF
                     userViewModel.addAppointment(appointment)
-                    generateAndShareOrderPDF(context, appointment, email)
+                    generateAndDownloadPDFLocal(context, appointment)
                     navController.popBackStack()
                 },
                 modifier = Modifier.fillMaxWidth().height(56.dp),
-                enabled = plate.length >= 5 && clientName.isNotEmpty() && email.contains("@") && selectedMechanic.isNotEmpty(),
+                enabled = plate.isNotEmpty() && clientName.isNotEmpty() && selectedMechanic.isNotEmpty(),
                 colors = ButtonDefaults.buttonColors(containerColor = AppRed),
                 shape = RoundedCornerShape(12.dp)
-            ) { Text("GENERAR ORDEN Y ENVIAR PDF", fontWeight = FontWeight.Bold, color = Color.White) }
+            ) { Text("CERRAR ORDEN Y DESCARGAR PDF", fontWeight = FontWeight.Bold, color = Color.White) }
             Spacer(modifier = Modifier.height(40.dp))
         }
     }
 }
 
-// --- FUNCIONES DE APOYO ---
+// --- LÓGICA DE PDF MEJORADA (DESCARGA LOCAL) ---
 
-fun generateAndShareOrderPDF(context: Context, appointment: Appointment, targetEmail: String) {
+fun generateAndDownloadPDFLocal(context: Context, appointment: Appointment) {
     val pdfDocument = PdfDocument()
     val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create()
     val page = pdfDocument.startPage(pageInfo)
     val canvas = page.canvas
     val paint = Paint()
 
-    // Dibujado del PDF (Simplificado para el ejemplo)
+    // Encabezado con estilo
     paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
     paint.textSize = 24f
-    paint.color = android.graphics.Color.RED
-    canvas.drawText("PIT-LANE - ORDEN DE SERVICIO", 50f, 50f, paint)
+    paint.color = android.graphics.Color.rgb(211, 47, 47) // Rojo PIT-LANE
+    canvas.drawText("PIT-LANE CARS - ORDEN DE SERVICIO", 50f, 60f, paint)
 
     paint.color = android.graphics.Color.BLACK
     paint.textSize = 14f
-    canvas.drawText("Cliente: ${appointment.clientName}", 50f, 100f, paint)
-    canvas.drawText("Placa: ${appointment.plate}", 50f, 120f, paint)
-    canvas.drawText("Vehículo: ${appointment.brand} ${appointment.model}", 50f, 140f, paint)
-    canvas.drawText("Fecha: ${appointment.entryDate}", 50f, 160f, paint)
-    canvas.drawText("Total: $${appointment.totalCost}", 50f, 200f, paint)
+    paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+
+    var y = 110f
+    val step = 25f
+
+    canvas.drawText("Cliente: ${appointment.clientName}", 50f, y, paint); y += step
+    canvas.drawText("Celular: ${appointment.phone1}", 50f, y, paint); y += step
+    canvas.drawText("Placa: ${appointment.plate}", 50f, y, paint); y += step
+    canvas.drawText("Vehículo: ${appointment.brand} ${appointment.model}", 50f, y, paint); y += step
+    canvas.drawText("Año: ${appointment.year} | KM: ${appointment.mileage}", 50f, y, paint); y += step
+    canvas.drawText("Mecánico: ${appointment.mechanic}", 50f, y, paint); y += step
+    canvas.drawText("Fecha: ${appointment.entryDate}", 50f, y, paint); y += step
+
+    y += 20f
+    paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+    canvas.drawText("SERVICIOS:", 50f, y, paint); y += step
+
+    paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+    appointment.selectedServices.forEach { service ->
+        canvas.drawText("• $service", 70f, y, paint)
+        y += 20f
+    }
+
+    y += 30f
+    paint.textSize = 18f
+    paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+    canvas.drawText("TOTAL A PAGAR: $${appointment.totalCost}", 50f, y, paint)
 
     pdfDocument.finishPage(page)
 
-    val file = File(context.cacheDir, "Orden_PitLane_${appointment.plate}.pdf")
-    pdfDocument.writeTo(FileOutputStream(file))
-    pdfDocument.close()
+    // Guardado en la carpeta de Descargas pública
+    val fileName = "Orden_PITLANE_${appointment.plate}_${System.currentTimeMillis()}.pdf"
+    val file = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), fileName)
 
-    // Compartir por Email
-    val uri = FileProvider.getUriForFile(context, "com.example.parcial_sebastiangranoblesardila.fileprovider", file)
-    val intent = Intent(Intent.ACTION_SEND).apply {
-        type = "application/pdf"
-        putExtra(Intent.EXTRA_EMAIL, arrayOf(targetEmail))
-        putExtra(Intent.EXTRA_SUBJECT, "Orden de Servicio PIT-LANE - ${appointment.plate}")
-        putExtra(Intent.EXTRA_TEXT, "Adjuntamos su orden de servicio generada en PIT-LANE.")
-        putExtra(Intent.EXTRA_STREAM, uri)
-        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    try {
+        pdfDocument.writeTo(FileOutputStream(file))
+        Toast.makeText(context, "PDF Guardado en Descargas", Toast.LENGTH_LONG).show()
+
+        // Abrir el archivo inmediatamente
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "application/pdf")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(intent)
+
+    } catch (e: Exception) {
+        Toast.makeText(context, "Error al guardar: ${e.message}", Toast.LENGTH_SHORT).show()
+    } finally {
+        pdfDocument.close()
     }
-    context.startActivity(Intent.createChooser(intent, "Enviar correo..."))
 }
+
+// --- COMPONENTES UI COMPLEMENTARIOS ---
 
 @Composable
 fun getTextFieldColors(accent: Color) = OutlinedTextFieldDefaults.colors(

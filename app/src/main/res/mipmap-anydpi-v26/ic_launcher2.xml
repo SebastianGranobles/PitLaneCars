@@ -1,6 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- El fondo gris con cuadrícula que me pasaste arriba -->
     <background android:drawable="@drawable/ic_launcher2_background"/>
 
-    <!-- CAMBIA ESTA LÍNEA ASÍ: -->
+    <!-- TU LOGO (Cambiamos ic_launcher2_foreground por el nombre de tu imagen) -->
     <foreground android:drawable="@drawable/logo_pit_lane"/>
 </adaptive-icon>
