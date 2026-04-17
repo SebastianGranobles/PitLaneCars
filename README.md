@@ -3,4 +3,5 @@ Desarrollador principal full stack Sebastian Granobles Ardila
 Firebase proxima integracion a antigravity
 Kotlin
 Android studio
-<img width="501" height="500" alt="image" src="https://github.com/user-attachments/assets/b8fd21af-b25d-4f27-a4e9-3f09c595b447" />
+<img width="2832" height="3460" alt="diagram" src="https://github.com/user-attachments/assets/ebc67d8b-937f-4bf3-9166-fbd4aa6964bd" />
+
