@@ -43,5 +43,18 @@ fun AppNavigation() {
         composable("password_history_route") {
             PasswordHistoryScreen(navController = navController, userViewModel = userViewModel)
         }
+        composable("history_route") {
+            HistoryScreen(navController = navController, userViewModel = userViewModel)
+        }
+        // RUTAS DE ADMINISTRACIÓN
+        composable("admin_dashboard_route") {
+            AdminDashboardScreen(navController = navController, userViewModel = userViewModel)
+        }
+        composable("mechanics_management_route") {
+            MechanicsManagementScreen(navController = navController, userViewModel = userViewModel)
+        }
+        composable("admin_appointments_route") {
+            AdminAppointmentsScreen(navController = navController, userViewModel = userViewModel)
+        }
     }
 }

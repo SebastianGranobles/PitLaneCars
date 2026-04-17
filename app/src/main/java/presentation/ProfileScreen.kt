@@ -13,6 +13,8 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -27,9 +29,10 @@ import java.util.concurrent.TimeUnit
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(navController: NavController, userViewModel: UserViewModel) {
-    val AppRed = Color(0xFFD32F2F)
-    val AppGrey = Color(0xFF2C2C2C)
-    val AppLightGrey = Color(0xFF3E3E3E)
+    // --- NUEVA PALETA PIT-LANE ---
+    val PitRed = Color(0xFFD32F2F)
+    val PitDarkGrey = Color(0xFF1C1C1C)
+    val PitMediumGrey = Color(0xFF2C2C2C)
 
     val user by userViewModel.user.collectAsState()
     val isLockedState by userViewModel.isProfileEditingLocked.collectAsState()
@@ -48,10 +51,11 @@ fun ProfileScreen(navController: NavController, userViewModel: UserViewModel) {
     val textFieldColors = OutlinedTextFieldDefaults.colors(
         focusedTextColor = Color.White,
         unfocusedTextColor = Color.White,
-        focusedBorderColor = AppRed,
+        focusedBorderColor = PitRed,
         unfocusedBorderColor = Color.Gray,
-        focusedLabelColor = AppRed,
-        unfocusedLabelColor = Color.Gray
+        focusedLabelColor = PitRed,
+        unfocusedLabelColor = Color.Gray,
+        cursorColor = PitRed
     )
 
     LaunchedEffect(user) {
@@ -83,14 +87,16 @@ fun ProfileScreen(navController: NavController, userViewModel: UserViewModel) {
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("¿Eliminar cuenta?", fontWeight = FontWeight.Bold) },
-            text = { Text("Esta acción es permanente y borrará todos tus datos.") },
+            containerColor = PitMediumGrey,
+            title = { Text("¿Eliminar cuenta?", fontWeight = FontWeight.Bold, color = Color.White) },
+            text = { Text("Esta acción es permanente y borrará todos tus datos de PIT-LANE.", color = Color.LightGray) },
             confirmButton = {
                 TextButton(onClick = {
-                    userViewModel.deleteAccount()
+                    // CORRECCIÓN: Verifica que el nombre de la función sea deleteUserAccount
+                    userViewModel.deleteUserAccount()
                     navController.navigate("login_route") { popUpTo(0) }
                 }) {
-                    Text("BORRAR", color = AppRed, fontWeight = FontWeight.Bold)
+                    Text("BORRAR", color = PitRed, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -104,8 +110,8 @@ fun ProfileScreen(navController: NavController, userViewModel: UserViewModel) {
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("MI PERFIL TÉCNICO", color = Color.White, fontWeight = FontWeight.Bold) },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = AppRed),
+                title = { Text("MI PERFIL PIT-LANE", color = Color.White, fontWeight = FontWeight.Black) },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = PitRed),
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Color.White)
@@ -126,7 +132,7 @@ fun ProfileScreen(navController: NavController, userViewModel: UserViewModel) {
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
-                .background(AppGrey)
+                .background(PitDarkGrey)
                 .verticalScroll(rememberScrollState())
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -134,27 +140,30 @@ fun ProfileScreen(navController: NavController, userViewModel: UserViewModel) {
             Surface(
                 modifier = Modifier.size(120.dp),
                 shape = CircleShape,
-                color = AppLightGrey,
-                border = BorderStroke(4.dp, AppRed),
-                shadowElevation = 4.dp
+                color = PitMediumGrey,
+                border = BorderStroke(4.dp, PitRed),
+                shadowElevation = 8.dp
             ) {
-                Icon(Icons.Default.Person, null, modifier = Modifier.padding(25.dp).fillMaxSize(), tint = Color.Gray)
+                Icon(Icons.Default.Person, null, modifier = Modifier.padding(25.dp).fillMaxSize(), tint = PitRed)
             }
+
+            Text(text = user?.fullName?.uppercase() ?: "", color = Color.White, fontWeight = FontWeight.Black, fontSize = 20.sp, modifier = Modifier.padding(top = 16.dp))
+            Text(text = user?.email ?: "", fontSize = 14.sp, color = Color.Gray)
+
+            Spacer(Modifier.height(24.dp))
 
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
-                label = { Text("Nombre") },
+                label = { Text("Nombre Completo") },
                 enabled = !isLockedState,
-                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-                leadingIcon = { Icon(Icons.Default.Badge, null, tint = AppRed) },
+                modifier = Modifier.fillMaxWidth(),
+                leadingIcon = { Icon(Icons.Default.Badge, null, tint = PitRed) },
                 shape = RoundedCornerShape(12.dp),
                 colors = textFieldColors
             )
 
-            Text(text = user?.email ?: "", fontSize = 14.sp, color = Color.Gray, modifier = Modifier.padding(top = 8.dp))
-
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(12.dp))
 
             OutlinedTextField(
                 value = phone,
@@ -162,7 +171,7 @@ fun ProfileScreen(navController: NavController, userViewModel: UserViewModel) {
                 label = { Text("Teléfono") },
                 enabled = !isLockedState,
                 modifier = Modifier.fillMaxWidth(),
-                leadingIcon = { Icon(Icons.Default.Phone, null, tint = AppRed) },
+                leadingIcon = { Icon(Icons.Default.Phone, null, tint = PitRed) },
                 shape = RoundedCornerShape(12.dp),
                 colors = textFieldColors
             )
@@ -210,7 +219,7 @@ fun ProfileScreen(navController: NavController, userViewModel: UserViewModel) {
                 ExposedDropdownMenu(
                     expanded = expandedNationality,
                     onDismissRequest = { expandedNationality = false },
-                    modifier = Modifier.background(AppLightGrey)
+                    modifier = Modifier.background(PitMediumGrey)
                 ) {
                     nationalities.forEach { option ->
                         DropdownMenuItem(
@@ -233,7 +242,7 @@ fun ProfileScreen(navController: NavController, userViewModel: UserViewModel) {
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 enabled = !isLockedState && phone.isNotEmpty() && name.isNotEmpty(),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = AppRed,
+                    containerColor = PitRed,
                     disabledContainerColor = Color.DarkGray
                 ),
                 shape = RoundedCornerShape(12.dp)
@@ -245,14 +254,14 @@ fun ProfileScreen(navController: NavController, userViewModel: UserViewModel) {
                 } else {
                     Icon(Icons.Default.CloudUpload, null)
                     Spacer(Modifier.width(8.dp))
-                    Text("SINCRONIZAR", fontWeight = FontWeight.Bold)
+                    Text("SINCRONIZAR PERFIL", fontWeight = FontWeight.Bold)
                 }
             }
 
             Spacer(Modifier.height(16.dp))
 
             TextButton(onClick = { showDeleteDialog = true }) {
-                Text("ELIMINAR CUENTA", color = AppRed, fontWeight = FontWeight.Medium)
+                Text("ELIMINAR MI CUENTA", color = PitRed, fontWeight = FontWeight.Bold)
             }
 
             Spacer(modifier = Modifier.height(24.dp))

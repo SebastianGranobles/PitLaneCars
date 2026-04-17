@@ -23,7 +23,15 @@ data class User(
     val nationality: String = "",
     val lastProfileUpdateTime: Long = 0L,
     val uid: String = "",
-    val role: String = "ASESOR"
+    val role: String = "ASESOR" // ASESOR, ADMIN, MECANICO
+)
+
+data class Mechanic(
+    val id: String = UUID.randomUUID().toString(),
+    val name: String = "",
+    val specialty: String = "",
+    val phone: String = "",
+    val status: String = "Activo"
 )
 
 data class Appointment(
@@ -45,11 +53,12 @@ data class Appointment(
     val partsCost: Double = 0.0,
     val totalCost: Double = laborCost + partsCost,
     val paymentMethod: String = "Efectivo",
-    val status: String = "Recibido",
+    val status: String = "Recibido", // Recibido (Yellow), Listo (Green), Cancelado
     val mechanic: String = "Sin asignar",
     val clientId: String = "",
     val phone2: String = "",
-    val address: String = ""
+    val address: String = "",
+    val vehicleType: String = "MOTO" // MOTO, CARRO
 )
 
 // --- VIEWMODEL ---
@@ -59,6 +68,7 @@ class UserViewModel : ViewModel() {
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
 
     private var appointmentsListener: ListenerRegistration? = null
+    private var mechanicsListener: ListenerRegistration? = null
 
     private val _user = MutableStateFlow<User?>(null)
     val user: StateFlow<User?> = _user
@@ -68,6 +78,9 @@ class UserViewModel : ViewModel() {
 
     private val _finishedAppointments = MutableStateFlow<List<Appointment>>(emptyList())
     val finishedAppointments: StateFlow<List<Appointment>> = _finishedAppointments
+
+    private val _mechanics = MutableStateFlow<List<Mechanic>>(emptyList())
+    val mechanics: StateFlow<List<Mechanic>> = _mechanics
 
     private val _authState = MutableStateFlow(AuthState.IDLE)
     val authState: StateFlow<AuthState> = _authState
@@ -88,6 +101,7 @@ class UserViewModel : ViewModel() {
         auth.currentUser?.let { firebaseUser ->
             fetchUserData(firebaseUser.uid)
             startAppointmentsRealtimeListener()
+            startMechanicsRealtimeListener()
         }
     }
 
@@ -109,6 +123,7 @@ class UserViewModel : ViewModel() {
                     val uid = task.result?.user?.uid ?: ""
                     fetchUserData(uid)
                     startAppointmentsRealtimeListener()
+                    startMechanicsRealtimeListener()
                 } else {
                     _authState.value = AuthState.ERROR
                     _errorMessage.value = "Error: ${task.exception?.localizedMessage}"
@@ -174,6 +189,7 @@ class UserViewModel : ViewModel() {
                             _user.value = User(fullName = name, email = email, uid = uid, role = "ASESOR")
                             _authState.value = AuthState.SUCCESS
                             startAppointmentsRealtimeListener()
+                            startMechanicsRealtimeListener()
                         }
                         .addOnFailureListener { e ->
                             _errorMessage.value = "Error en base de datos: ${e.localizedMessage}"
@@ -188,31 +204,13 @@ class UserViewModel : ViewModel() {
 
     fun logout() {
         appointmentsListener?.remove()
+        mechanicsListener?.remove()
         auth.signOut()
         _user.value = null
         _appointments.value = emptyList()
         _finishedAppointments.value = emptyList()
+        _mechanics.value = emptyList()
         _authState.value = AuthState.IDLE
-    }
-
-    // --- FUNCIÓN DE ELIMINAR CUENTA (NUEVA CORRECCIÓN) ---
-    fun deleteAccount() {
-        val currentUser = auth.currentUser
-        val uid = currentUser?.uid
-        _authState.value = AuthState.LOADING
-
-        currentUser?.delete()?.addOnCompleteListener { task ->
-            if (task.isSuccessful) {
-                if (uid != null) {
-                    db.collection("users").document(uid).delete()
-                }
-                _user.value = null
-                _authState.value = AuthState.IDLE
-            } else {
-                _errorMessage.value = "No se pudo eliminar: ${task.exception?.localizedMessage}"
-                _authState.value = AuthState.ERROR
-            }
-        }
     }
 
     fun startAppointmentsRealtimeListener() {
@@ -232,6 +230,16 @@ class UserViewModel : ViewModel() {
             }
     }
 
+    fun startMechanicsRealtimeListener() {
+        mechanicsListener?.remove()
+        mechanicsListener = db.collection("mechanics")
+            .addSnapshotListener { snapshot, e ->
+                if (snapshot != null) {
+                    _mechanics.value = snapshot.toObjects(Mechanic::class.java)
+                }
+            }
+    }
+
     fun addAppointment(app: Appointment): Boolean {
         val currentUid = auth.currentUser?.uid ?: return false
         val finalApp = app.copy(clientId = currentUid)
@@ -243,24 +251,23 @@ class UserViewModel : ViewModel() {
         return true
     }
 
-    fun finishAppointment(id: String) {
-        db.collection("appointments").document(id).update("status", "Listo")
+    fun updateAppointmentStatus(id: String, newStatus: String) {
+        db.collection("appointments").document(id).update("status", newStatus)
+    }
+
+    fun deleteAppointment(id: String) {
+        db.collection("appointments").document(id).delete()
             .addOnFailureListener { e ->
-                _errorMessage.value = "Error al finalizar: ${e.localizedMessage}"
+                _errorMessage.value = "Error al eliminar: ${e.localizedMessage}"
             }
     }
 
-    fun removeAppointment(id: String) {
-        db.collection("appointments").document(id).delete()
+    fun addMechanic(mechanic: Mechanic) {
+        db.collection("mechanics").document(mechanic.id).set(mechanic)
     }
 
-    fun removeFinishedAppointment(id: String) {
-        db.collection("appointments").document(id).delete()
-    }
-
-    override fun onCleared() {
-        super.onCleared()
-        appointmentsListener?.remove()
+    fun deleteMechanic(id: String) {
+        db.collection("mechanics").document(id).delete()
     }
 
     fun resetAuthState() {
@@ -321,5 +328,30 @@ class UserViewModel : ViewModel() {
                 _errorMessage.value = "Error: ${e.localizedMessage}"
                 _authState.value = AuthState.ERROR
             }
+    }
+
+    fun deleteUserAccount() {
+        val currentUid = auth.currentUser?.uid ?: return
+        
+        db.collection("users").document(currentUid).delete()
+            .addOnSuccessListener {
+                auth.currentUser?.delete()
+                    ?.addOnCompleteListener { task ->
+                        if (task.isSuccessful) {
+                            logout()
+                        } else {
+                            _errorMessage.value = "Error al borrar cuenta: ${task.exception?.localizedMessage}"
+                        }
+                    }
+            }
+            .addOnFailureListener { e ->
+                _errorMessage.value = "Error al borrar datos: ${e.localizedMessage}"
+            }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        appointmentsListener?.remove()
+        mechanicsListener?.remove()
     }
 }
