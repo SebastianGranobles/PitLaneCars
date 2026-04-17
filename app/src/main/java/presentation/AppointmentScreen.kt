@@ -3,7 +3,12 @@ package com.example.parcial_sebastiangranoblesardila.presentation
 import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Typeface
+import android.graphics.pdf.PdfDocument
 import android.net.Uri
+import android.os.Environment
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -22,6 +27,8 @@ import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.TwoWheeler
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,6 +44,8 @@ import androidx.navigation.NavController
 import com.example.parcial_sebastiangranoblesardila.viewmodel.Appointment
 import com.example.parcial_sebastiangranoblesardila.viewmodel.UserViewModel
 import java.io.File
+import java.io.FileOutputStream
+import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -45,52 +54,35 @@ import java.util.*
 fun AppointmentScreen(navController: NavController, userViewModel: UserViewModel) {
     val context = LocalContext.current
     val AppRed = Color(0xFFD32F2F)
-    val AppGrey = Color(0xFF2C2C2C)
-    val AppLightGrey = Color(0xFF3E3E3E)
+    val AppGrey = Color(0xFF1C1C1C)
+    val AppMediumGrey = Color(0xFF2C2C2C)
     val scrollState = rememberScrollState()
 
-    val user by userViewModel.user.collectAsState()
-    val userRole = user?.role ?: "ASESOR"
-
-    var tempUri by remember { mutableStateOf<Uri?>(null) }
-
-    val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicture()
-    ) { success ->
-        if (success) {
-            Toast.makeText(context, "Captura exitosa", Toast.LENGTH_SHORT).show()
-        }
+    val currencyFormat = NumberFormat.getCurrencyInstance(Locale("es", "CO")).apply {
+        maximumFractionDigits = 0
     }
 
-    val requestPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (isGranted) {
-            try {
-                val uri = createPhotoUri(context)
-                tempUri = uri
-                cameraLauncher.launch(uri)
-            } catch (e: Exception) {
-                Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
-            }
-        }
-    }
-
-    val textFieldColors = OutlinedTextFieldDefaults.colors(
-        focusedBorderColor = AppRed,
-        unfocusedBorderColor = Color.Gray,
-        focusedTextColor = Color.White,
-        unfocusedTextColor = Color.White,
-        focusedLabelColor = AppRed,
-        unfocusedLabelColor = Color.Gray,
-        cursorColor = AppRed,
-        focusedContainerColor = Color.Transparent,
-        unfocusedContainerColor = Color.Transparent
+    // --- DATA DE SERVICIOS ---
+    val motoPrices = mapOf(
+        "INSPECCIÓN" to mapOf("Arranque" to 25000, "Ruidos anormales" to 20000, "Fugas" to 20000, "Luces" to 25000, "Frenos" to 25000, "Cadena / transmisión" to 15000, "Llantas" to 15000, "Suspensión" to 20000, "Tablero / testigos" to 25000),
+        "MANTENIMIENTO" to mapOf("Cambio de aceite" to 5000, "Cambio de filtros" to 15000, "Ajuste y lubricación de cadena" to 5000, "Revisión general" to 40000, "Mantenimiento preventivo" to 150000),
+        "MECÁNICA" to mapOf("Reparación de motor" to 150000, "Ajuste de válvulas" to 70000, "Cambio de kit de arrastre" to 25000, "Cambio de embrague" to 50000, "Reparación de fugas de aceite" to 60000),
+        "FRENOS" to mapOf("Cambio de pastillas" to 15000, "Purgado de frenos" to 5000, "Cambio de líquido de frenos" to 10000, "Reparación de bomba / cáliper" to 20000),
+        "ELÉCTRICO" to mapOf("Diagnóstico eléctrico" to 50000, "Cambio de batería" to 15000, "Reparación de cableado" to 50000, "Revisión sistema de carga" to 20000, "Instalación de accesorios" to 40000),
+        "COMBUSTIBLE" to mapOf("Limpieza de carburador" to 40000, "Limpieza de inyectores" to 40000, "Diagnóstico de inyección electrónica" to 50000, "Cambio de filtro de combustible" to 25000),
+        "SUSPENSIÓN" to mapOf("Cambio de retenes" to 35000, "Mantenimiento de horquilla" to 35000, "Cambio de llantas" to 15000, "Parcheo / balanceo" to 15000, "Cambio de rodamientos" to 15000),
+        "OTROS" to mapOf("Diagnóstico por escáner" to 60000, "Revisión pre-viaje" to 50000, "Revisión para tecnomecánica" to 40000, "Lavado de motor" to 60000, "Personalización básica" to 50000)
     )
 
-    val servicePrices = mapOf(
-        "Cambio de aceite" to 0.0, "Cambio de filtros" to 0.0, "Mantenimiento Preventivo" to 0.0, "Revisión General" to 0.0,
-        "Reparación de motor" to 0.0, "Frenos" to 0.0, "Sistema Eléctrico" to 0.0, "Llantas" to 0.0
+    val carroPrices = mapOf(
+        "INSPECCIÓN" to mapOf("Arranque" to 40000, "Ruidos anormales" to 35000, "Fugas" to 35000, "Luces" to 40000, "Frenos" to 50000, "Transmisión" to 40000, "Llantas" to 30000, "Suspensión" to 45000, "Tablero / testigos" to 50000),
+        "MANTENIMIENTO" to mapOf("Cambio de aceite" to 40000, "Cambio de filtros" to 5000, "Revisión general" to 80000, "Mantenimiento preventivo" to 180000),
+        "MECÁNICA" to mapOf("Reparación de motor" to 300000, "Ajuste de válvulas" to 150000, "Cambio de embrague" to 250000, "Reparación de fugas de aceite" to 120000),
+        "FRENOS" to mapOf("Cambio de pastillas" to 80000, "Purgado de frenos" to 20000, "Cambio de líquido de frenos" to 30000, "Reparación de cáliper" to 80000),
+        "ELÉCTRICO" to mapOf("Diagnóstico eléctrico" to 90000, "Cambio de batería" to 30000, "Reparación de cableado" to 90000, "Revisión sistema de carga" to 50000, "Instalación de accesorios" to 80000),
+        "COMBUSTIBLE" to mapOf("Limpieza de inyectores" to 90000, "Diagnóstico de inyección electrónica" to 100000, "Cambio de filtro de combustible" to 40000),
+        "SUSPENSIÓN" to mapOf("Cambio de amortiguadores" to 120000, "Cambio de llantas" to 30000, "Balanceo" to 30000, "Cambio de rodamientos" to 60000),
+        "OTROS" to mapOf("Diagnóstico por escáner" to 120000, "Revisión pre-viaje" to 80000, "Revisión tecnomecánica (pre-chequeo)" to 70000, "Lavado de motor" to 80000)
     )
 
     // --- ESTADOS ---
@@ -101,26 +93,25 @@ fun AppointmentScreen(navController: NavController, userViewModel: UserViewModel
     var year by remember { mutableStateOf("") }
     var displacement by remember { mutableStateOf("") }
     var mileage by remember { mutableStateOf("") }
-    var usageType by remember { mutableStateOf("Uso diario") }
     var clientName by remember { mutableStateOf("") }
     var phone1 by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     val selectedServices = remember { mutableStateListOf<String>() }
-    var problemDescription by remember { mutableStateOf("") }
     var laborCost by remember { mutableStateOf("") }
     var selectedMechanic by remember { mutableStateOf("") }
 
     val mechanicsList = listOf("Sebastian Granobles", "Andrés Mendoza", "Juan Perez", "Carlos Rodriguez")
 
-    val isPlateValid = plate.length >= 5
-    val isPhoneValid = phone1.length == 10
-
-    val totalToPay = (laborCost.toDoubleOrNull() ?: 0.0) + selectedServices.sumOf { servicePrices[it] ?: 0.0 }
+    // --- LÓGICA ---
+    val currentPrices = if (vehicleType == "Moto") motoPrices else carroPrices
+    val flatPrices = currentPrices.values.flatMap { it.entries }.associate { it.key to it.value }
+    val servicesTotal = selectedServices.sumOf { flatPrices[it] ?: 0 }.toDouble()
+    val totalToPay = (laborCost.toDoubleOrNull() ?: 0.0) + servicesTotal
 
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("PIT-LANE ORDEN", color = Color.White, fontWeight = FontWeight.Bold) },
+                title = { Text("PIT-LANE ORDEN", color = Color.White, fontWeight = FontWeight.Black) },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = AppRed),
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
@@ -131,126 +122,160 @@ fun AppointmentScreen(navController: NavController, userViewModel: UserViewModel
         }
     ) { padding ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .background(AppGrey)
-                .verticalScroll(scrollState)
-                .padding(20.dp),
+            modifier = Modifier.fillMaxSize().padding(padding).background(AppGrey).verticalScroll(scrollState).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             SectionTitle("0. TIPO DE VEHÍCULO", AppRed)
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                VehicleTypeCard(
-                    label = "MOTO",
-                    icon = Icons.Default.TwoWheeler,
-                    isSelected = vehicleType == "Moto",
-                    onClick = { vehicleType = "Moto" },
-                    modifier = Modifier.weight(1f),
-                    AppRed = AppRed
-                )
-                VehicleTypeCard(
-                    label = "CARRO",
-                    icon = Icons.Default.DirectionsCar,
-                    isSelected = vehicleType == "Carro",
-                    onClick = { vehicleType = "Carro" },
-                    modifier = Modifier.weight(1f),
-                    AppRed = AppRed
-                )
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                VehicleTypeCard("MOTO", Icons.Default.TwoWheeler, vehicleType == "Moto", { vehicleType = "Moto"; selectedServices.clear() }, Modifier.weight(1f), AppRed)
+                VehicleTypeCard("CARRO", Icons.Default.DirectionsCar, vehicleType == "Carro", { vehicleType = "Carro"; selectedServices.clear() }, Modifier.weight(1f), AppRed)
             }
 
             SectionTitle("1. DATOS DEL VEHÍCULO", AppRed)
-
-            OutlinedTextField(
-                value = plate,
-                onValueChange = { if (it.length <= 6) plate = it.uppercase() },
-                label = { Text("Placa *") },
-                modifier = Modifier.fillMaxWidth(),
-                colors = textFieldColors,
-                textStyle = TextStyle(color = Color.White)
-            )
-
+            OutlinedTextField(value = plate, onValueChange = { if (it.length <= 6) plate = it.uppercase() }, label = { Text("Placa *") }, modifier = Modifier.fillMaxWidth(), colors = getTextFieldColors(AppRed))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(value = brand, onValueChange = { brand = it }, label = { Text("Marca") }, modifier = Modifier.weight(1f), colors = textFieldColors, textStyle = TextStyle(color = Color.White))
-                OutlinedTextField(value = model, onValueChange = { model = it }, label = { Text("Referencia") }, modifier = Modifier.weight(1f), colors = textFieldColors, textStyle = TextStyle(color = Color.White))
+                OutlinedTextField(brand, { brand = it }, label = { Text("Marca") }, modifier = Modifier.weight(1f), colors = getTextFieldColors(AppRed))
+                OutlinedTextField(model, { model = it }, label = { Text("Referencia") }, modifier = Modifier.weight(1f), colors = getTextFieldColors(AppRed))
             }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(value = displacement, onValueChange = { displacement = it }, label = { Text("Cilindraje") }, modifier = Modifier.weight(1f), colors = textFieldColors, textStyle = TextStyle(color = Color.White), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                OutlinedTextField(value = year, onValueChange = { if (it.length <= 4) year = it }, label = { Text("Año") }, modifier = Modifier.weight(1f), colors = textFieldColors, textStyle = TextStyle(color = Color.White), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-            }
-
-            OutlinedTextField(value = mileage, onValueChange = { mileage = it }, label = { Text("Kilometraje") }, modifier = Modifier.fillMaxWidth(), colors = textFieldColors, textStyle = TextStyle(color = Color.White), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
 
             SectionTitle("2. DATOS DEL CLIENTE", AppRed)
-            OutlinedTextField(value = clientName, onValueChange = { clientName = it }, label = { Text("Nombre Completo *") }, modifier = Modifier.fillMaxWidth(), colors = textFieldColors, textStyle = TextStyle(color = Color.White))
+            OutlinedTextField(clientName, { clientName = it }, label = { Text("Nombre Cliente *") }, modifier = Modifier.fillMaxWidth(), colors = getTextFieldColors(AppRed))
+            OutlinedTextField(email, { email = it }, label = { Text("Correo Electrónico (Para PDF) *") }, modifier = Modifier.fillMaxWidth(), colors = getTextFieldColors(AppRed), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))
+            OutlinedTextField(phone1, { if (it.length <= 10) phone1 = it }, label = { Text("Celular *") }, modifier = Modifier.fillMaxWidth(), colors = getTextFieldColors(AppRed), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone))
 
-            OutlinedTextField(
-                value = phone1,
-                onValueChange = { if (it.length <= 10 && it.all { c -> c.isDigit() }) phone1 = it },
-                label = { Text("Celular *") },
-                modifier = Modifier.fillMaxWidth(),
-                colors = textFieldColors,
-                textStyle = TextStyle(color = Color.White),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                trailingIcon = {
-                    if (isPhoneValid) {
-                        IconButton(onClick = {
-                            val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone1"))
-                            context.startActivity(intent)
-                        }) { Icon(Icons.Default.Call, null, tint = Color(0xFF4CAF50)) }
+            SectionTitle("3. SERVICIOS (${vehicleType.uppercase()})", AppRed)
+
+            // --- ORGANIZACIÓN 2 EN 2 ---
+            val categories = currentPrices.keys.toList()
+            for (i in categories.indices step 2) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Categoría 1
+                    Column(modifier = Modifier.weight(1f)) {
+                        ServiceCategory(categories[i], currentPrices[categories[i]]!!, selectedServices, AppRed, currencyFormat)
+                    }
+                    // Categoría 2 (Si existe)
+                    if (i + 1 < categories.size) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            ServiceCategory(categories[i+1], currentPrices[categories[i+1]]!!, selectedServices, AppRed, currencyFormat)
+                        }
+                    } else {
+                        Spacer(modifier = Modifier.weight(1f))
                     }
                 }
-            )
-
-            SectionTitle("3. SERVICIOS Y SÍNTOMAS", AppRed)
-            ServiceCategory("TALLER", listOf("Cambio de aceite", "Cambio de filtros", "Revisión General", "Mantenimiento Preventivo", "Reparación de motor", "Frenos", "Sistema Eléctrico"), selectedServices, AppRed)
-
-            OutlinedTextField(value = problemDescription, onValueChange = { problemDescription = it }, label = { Text("Descripción de falla") }, modifier = Modifier.fillMaxWidth().height(100.dp), colors = textFieldColors, textStyle = TextStyle(color = Color.White))
-
-            SectionTitle("4. COSTOS Y PERSONAL", AppRed)
-            OutlinedTextField(value = laborCost, onValueChange = { laborCost = it }, label = { Text("Mano de Obra ($)") }, modifier = Modifier.fillMaxWidth(), colors = textFieldColors, textStyle = TextStyle(color = Color.White), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-
-            AppointmentDropdown(label = "Mecánico Asignado *", options = mechanicsList, onSelect = { selectedMechanic = it }, AppRed = AppRed, AppLightGrey = AppLightGrey)
-
-            SectionTitle("5. EVIDENCIA FOTOGRÁFICA", AppRed)
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                PhotoStepItem("INGRESO", { requestPermissionLauncher.launch(Manifest.permission.CAMERA) }, Modifier.weight(1f), AppRed)
-                PhotoStepItem("SALIDA", { requestPermissionLauncher.launch(Manifest.permission.CAMERA) }, Modifier.weight(1f), AppRed)
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            SectionTitle("4. COSTOS Y PERSONAL", AppRed)
+            OutlinedTextField(value = laborCost, onValueChange = { laborCost = it }, label = { Text("Mano de Obra adicional ($)") }, modifier = Modifier.fillMaxWidth(), colors = getTextFieldColors(AppRed), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = AppMediumGrey), border = androidx.compose.foundation.BorderStroke(1.dp, AppRed)) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("COSTO SERVICIOS: ${currencyFormat.format(servicesTotal)}", color = Color.Gray, fontSize = 14.sp)
+                    Text("TOTAL A PAGAR: ${currencyFormat.format(totalToPay)}", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Black)
+                }
+            }
+
+            AppointmentDropdown("Mecánico Asignado *", mechanicsList, { selectedMechanic = it }, AppRed, AppMediumGrey)
 
             Button(
                 onClick = {
                     val now = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date())
-                    val newAppointment = Appointment(
+                    val appointment = Appointment(
                         clientName = "$clientName | $vehicleType",
-                        phone1 = phone1,
-                        plate = plate,
-                        brand = brand,
-                        model = model,
-                        displacement = displacement,
-                        year = year,
-                        mileage = mileage,
-                        mechanic = selectedMechanic,
-                        problemDescription = "Vehículo: $vehicleType | $problemDescription",
+                        phone1 = phone1, plate = plate, brand = brand, model = model,
+                        displacement = displacement, year = year, mileage = mileage,
+                        mechanic = selectedMechanic, problemDescription = "Vehículo: $vehicleType",
                         selectedServices = selectedServices.toList(),
                         laborCost = laborCost.toDoubleOrNull() ?: 0.0,
-                        partsCost = 0.0,
+                        partsCost = servicesTotal,
                         totalCost = totalToPay,
-                        entryDate = now,
-                        status = "En Taller"
+                        entryDate = now, status = "En Taller"
                     )
-                    userViewModel.addAppointment(newAppointment)
+
+                    // Lógica: Guardar en DB y Enviar PDF
+                    userViewModel.addAppointment(appointment)
+                    generateAndShareOrderPDF(context, appointment, email)
                     navController.popBackStack()
                 },
                 modifier = Modifier.fillMaxWidth().height(56.dp),
-                enabled = isPlateValid && clientName.isNotEmpty() && isPhoneValid && selectedMechanic.isNotEmpty(),
+                enabled = plate.length >= 5 && clientName.isNotEmpty() && email.contains("@") && selectedMechanic.isNotEmpty(),
                 colors = ButtonDefaults.buttonColors(containerColor = AppRed),
                 shape = RoundedCornerShape(12.dp)
-            ) { Text("CREAR ORDEN", fontWeight = FontWeight.Bold, color = Color.White) }
+            ) { Text("GENERAR ORDEN Y ENVIAR PDF", fontWeight = FontWeight.Bold, color = Color.White) }
             Spacer(modifier = Modifier.height(40.dp))
+        }
+    }
+}
+
+// --- FUNCIONES DE APOYO ---
+
+fun generateAndShareOrderPDF(context: Context, appointment: Appointment, targetEmail: String) {
+    val pdfDocument = PdfDocument()
+    val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create()
+    val page = pdfDocument.startPage(pageInfo)
+    val canvas = page.canvas
+    val paint = Paint()
+
+    // Dibujado del PDF (Simplificado para el ejemplo)
+    paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+    paint.textSize = 24f
+    paint.color = android.graphics.Color.RED
+    canvas.drawText("PIT-LANE - ORDEN DE SERVICIO", 50f, 50f, paint)
+
+    paint.color = android.graphics.Color.BLACK
+    paint.textSize = 14f
+    canvas.drawText("Cliente: ${appointment.clientName}", 50f, 100f, paint)
+    canvas.drawText("Placa: ${appointment.plate}", 50f, 120f, paint)
+    canvas.drawText("Vehículo: ${appointment.brand} ${appointment.model}", 50f, 140f, paint)
+    canvas.drawText("Fecha: ${appointment.entryDate}", 50f, 160f, paint)
+    canvas.drawText("Total: $${appointment.totalCost}", 50f, 200f, paint)
+
+    pdfDocument.finishPage(page)
+
+    val file = File(context.cacheDir, "Orden_PitLane_${appointment.plate}.pdf")
+    pdfDocument.writeTo(FileOutputStream(file))
+    pdfDocument.close()
+
+    // Compartir por Email
+    val uri = FileProvider.getUriForFile(context, "com.example.parcial_sebastiangranoblesardila.fileprovider", file)
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "application/pdf"
+        putExtra(Intent.EXTRA_EMAIL, arrayOf(targetEmail))
+        putExtra(Intent.EXTRA_SUBJECT, "Orden de Servicio PIT-LANE - ${appointment.plate}")
+        putExtra(Intent.EXTRA_TEXT, "Adjuntamos su orden de servicio generada en PIT-LANE.")
+        putExtra(Intent.EXTRA_STREAM, uri)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    context.startActivity(Intent.createChooser(intent, "Enviar correo..."))
+}
+
+@Composable
+fun getTextFieldColors(accent: Color) = OutlinedTextFieldDefaults.colors(
+    focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+    focusedBorderColor = accent, unfocusedBorderColor = Color.Gray,
+    focusedLabelColor = accent, unfocusedLabelColor = Color.Gray,
+    cursorColor = accent
+)
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun ServiceCategory(title: String, services: Map<String, Int>, selectedServices: MutableList<String>, accent: Color, format: NumberFormat) {
+    Column(modifier = Modifier.padding(vertical = 4.dp)) {
+        Text(title, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = accent)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            services.forEach { (service, price) ->
+                val isSelected = selectedServices.contains(service)
+                FilterChip(
+                    selected = isSelected,
+                    onClick = { if (isSelected) selectedServices.remove(service) else selectedServices.add(service) },
+                    label = {
+                        Column {
+                            Text(service, fontSize = 9.sp)
+                            Text(format.format(price), fontSize = 7.sp)
+                        }
+                    },
+                    colors = FilterChipDefaults.filterChipColors(selectedContainerColor = accent, selectedLabelColor = Color.White)
+                )
+            }
         }
     }
 }
@@ -259,8 +284,8 @@ fun AppointmentScreen(navController: NavController, userViewModel: UserViewModel
 fun VehicleTypeCard(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, isSelected: Boolean, onClick: () -> Unit, modifier: Modifier, AppRed: Color) {
     Card(
         onClick = onClick,
-        modifier = modifier.height(80.dp),
-        colors = CardDefaults.cardColors(containerColor = if (isSelected) AppRed else Color(0xFF3E3E3E)),
+        modifier = modifier.height(70.dp),
+        colors = CardDefaults.cardColors(containerColor = if (isSelected) AppRed else Color(0xFF333333)),
         shape = RoundedCornerShape(12.dp)
     ) {
         Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
@@ -271,65 +296,21 @@ fun VehicleTypeCard(label: String, icon: androidx.compose.ui.graphics.vector.Ima
 }
 
 @Composable
-fun PhotoStepItem(label: String, onTake: () -> Unit, modifier: Modifier, AppRed: Color) {
-    Column(modifier = modifier.clip(RoundedCornerShape(12.dp)).background(Color(0xFF3E3E3E)).border(1.dp, Color.Gray, RoundedCornerShape(12.dp)).padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(label, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
-        IconButton(onClick = onTake) { Icon(Icons.Default.AddAPhoto, null, tint = AppRed) }
-        Text("SUBIR", fontSize = 8.sp, color = Color.Gray)
-    }
-}
-
-private fun createPhotoUri(context: Context): Uri {
-    val directory = File(context.cacheDir, "photos").apply { if (!exists()) mkdirs() }
-    val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-    val file = File(directory, "IMG_${timeStamp}.jpg")
-    val authority = "com.example.parcial_sebastiangranoblesardila.fileprovider"
-    return FileProvider.getUriForFile(context, authority, file)
-}
-
-@Composable
-fun SectionTitle(title: String, color: Color) { Text(title, fontSize = 14.sp, fontWeight = FontWeight.Black, color = color) }
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-fun ServiceCategory(title: String, services: List<String>, selectedServices: MutableList<String>, accentColor: Color) {
-    Column(modifier = Modifier.padding(vertical = 4.dp)) {
-        Text(title, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            services.forEach { service ->
-                val isSelected = selectedServices.contains(service)
-                FilterChip(
-                    selected = isSelected,
-                    onClick = { if (isSelected) selectedServices.remove(service) else selectedServices.add(service) },
-                    label = { Text(service, color = if (isSelected) Color.White else Color.Gray) },
-                    colors = FilterChipDefaults.filterChipColors(selectedContainerColor = accentColor, containerColor = Color.Transparent)
-                )
-            }
-        }
-    }
-}
+fun SectionTitle(title: String, color: Color) { Text(title, fontSize = 13.sp, fontWeight = FontWeight.Black, color = color) }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AppointmentDropdown(label: String, options: List<String>, onSelect: (String) -> Unit, AppRed: Color, AppLightGrey: Color) {
+fun AppointmentDropdown(label: String, options: List<String>, onSelect: (String) -> Unit, AppRed: Color, AppBg: Color) {
     var expanded by remember { mutableStateOf(false) }
     var selectedText by remember { mutableStateOf("") }
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
         OutlinedTextField(
-            value = selectedText,
-            onValueChange = {},
-            readOnly = true,
-            label = { Text(label, color = Color.Gray) },
+            value = selectedText, onValueChange = {}, readOnly = true, label = { Text(label) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier.menuAnchor().fillMaxWidth(),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White,
-                focusedBorderColor = AppRed,
-                unfocusedBorderColor = Color.Gray
-            )
+            colors = getTextFieldColors(AppRed)
         )
-        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, modifier = Modifier.background(AppLightGrey)) {
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, modifier = Modifier.background(AppBg)) {
             options.forEach { option -> DropdownMenuItem(text = { Text(option, color = Color.White) }, onClick = { selectedText = option; onSelect(option); expanded = false }) }
         }
     }
