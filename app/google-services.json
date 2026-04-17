@@ -1,0 +1,40 @@
+{
+  "project_info": {
+    "project_number": "1089491977831",
+    "firebase_url": "https://michi-bank-app-default-rtdb.firebaseio.com",
+    "project_id": "michi-bank-app",
+    "storage_bucket": "michi-bank-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1089491977831:android:c62a06294b8b164533f6c2",
+        "android_client_info": {
+          "package_name": "com.example.parcial_sebastiangranoblesardila"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1089491977831-1s6idh0aijv7539su0ohso2e55319voc.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBXkOZvRmbjpWFKWs5iOs2FEg5GSoEU9RY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1089491977831-1s6idh0aijv7539su0ohso2e55319voc.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

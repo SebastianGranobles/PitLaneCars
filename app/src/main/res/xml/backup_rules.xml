@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Define la ruta interna para guardar las fotos de la moto -->
+    <external-files-path
+        name="moto_images"
+        path="Pictures" />
+</paths>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Mapea la carpeta /cache/photos para que el FileProvider pueda generar la URI -->
+    <cache-path
+        name="my_cache_photos"
+        path="photos/" />
+
+    <!-- Mapea archivos internos generales por si acaso -->
+    <files-path
+        name="my_internal_files"
+        path="." />
+
+    <!-- Mapea archivos externos (tarjeta SD o almacenamiento público) -->
+    <external-path
+        name="my_external_files"
+        path="." />
+</paths>
