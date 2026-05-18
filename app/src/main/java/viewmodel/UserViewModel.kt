@@ -1,12 +1,9 @@
 package com.example.parcial_sebastiangranoblesardila.viewmodel
 
 import androidx.lifecycle.ViewModel
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.EmailAuthProvider
-import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import java.text.SimpleDateFormat
 import java.util.*
 
 // --- MODELOS ---
@@ -23,7 +20,7 @@ data class User(
     val nationality: String = "",
     val lastProfileUpdateTime: Long = 0L,
     val uid: String = "",
-    val role: String = "ASESOR" // ASESOR, ADMIN, MECANICO
+    val role: String = "ASESOR" // ASESOR, ADMIN, MECANICO, SUPER_ADMIN
 )
 
 data class Mechanic(
@@ -61,14 +58,26 @@ data class Appointment(
     val vehicleType: String = "MOTO" // MOTO, CARRO
 )
 
-// --- VIEWMODEL ---
+// --- VIEWMODEL LOCAL ---
 class UserViewModel : ViewModel() {
 
-    private val auth: FirebaseAuth = FirebaseAuth.getInstance()
-    private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
-
-    private var appointmentsListener: ListenerRegistration? = null
-    private var mechanicsListener: ListenerRegistration? = null
+    // ALMACENAMIENTO LOCAL EN MEMORIA (Simulando Firebase)
+    private val localUsers = mutableListOf(
+        User(
+            fullName = "Administrador Pit-Lane",
+            email = "admin@pitlane.com",
+            phone = "3001234567",
+            role = "SUPER_ADMIN", // Tiene todos los roles
+            uid = "admin_uid"
+        )
+    )
+    private val localPasswords = mutableMapOf("admin@pitlane.com" to "admin123")
+    private val localAppointments = mutableListOf<Appointment>()
+    private val localMechanics = mutableListOf(
+        Mechanic(name = "Juan Mecánico", specialty = "Motores", phone = "3110000000"),
+        Mechanic(name = "Pedro El Rápido", specialty = "Frenos", phone = "3120000000")
+    )
+    private val localPasswordHistory = mutableMapOf<String, MutableList<PasswordChangeLog>>()
 
     private val _user = MutableStateFlow<User?>(null)
     val user: StateFlow<User?> = _user
@@ -82,14 +91,14 @@ class UserViewModel : ViewModel() {
     private val _mechanics = MutableStateFlow<List<Mechanic>>(emptyList())
     val mechanics: StateFlow<List<Mechanic>> = _mechanics
 
+    private val _passwordChangeHistory = MutableStateFlow<List<PasswordChangeLog>>(emptyList())
+    val passwordChangeHistory: StateFlow<List<PasswordChangeLog>> = _passwordChangeHistory
+
     private val _authState = MutableStateFlow(AuthState.IDLE)
     val authState: StateFlow<AuthState> = _authState
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage
-
-    private val _passwordChangeHistory = MutableStateFlow<List<PasswordChangeLog>>(emptyList())
-    val passwordChangeHistory: StateFlow<List<PasswordChangeLog>> = _passwordChangeHistory
 
     private val _isProfileEditingLocked = MutableStateFlow(false)
     val isProfileEditingLocked: StateFlow<Boolean> = _isProfileEditingLocked
@@ -97,19 +106,24 @@ class UserViewModel : ViewModel() {
     val nationalities = listOf("Colombiana", "Venezolana", "Ecuatoriana", "Peruana", "Otra")
 
     init {
-        // Restaurar sesión si existe
-        auth.currentUser?.let { firebaseUser ->
-            fetchUserData(firebaseUser.uid)
-            startAppointmentsRealtimeListener()
-            startMechanicsRealtimeListener()
+        // Cargar datos iniciales
+        refreshLocalData()
+    }
+
+    private fun refreshLocalData() {
+        _appointments.value = localAppointments.filter { it.status != "Listo" }
+        _finishedAppointments.value = localAppointments.filter { it.status == "Listo" }
+        _mechanics.value = localMechanics.toList()
+        _user.value?.let { currentUser ->
+            _passwordChangeHistory.value = localPasswordHistory[currentUser.email] ?: emptyList()
         }
     }
 
     fun isUserLoggedIn(): Boolean {
-        return auth.currentUser != null
+        return _user.value != null
     }
 
-    // --- FUNCIONES DE AUTENTICACIÓN ---
+    // --- FUNCIONES DE AUTENTICACIÓN LOCALES ---
 
     fun login(email: String, pass: String) {
         if (email.isEmpty() || pass.isEmpty()) {
@@ -117,46 +131,18 @@ class UserViewModel : ViewModel() {
             return
         }
         _authState.value = AuthState.LOADING
-        auth.signInWithEmailAndPassword(email, pass)
-            .addOnCompleteListener { task ->
-                if (task.isSuccessful) {
-                    val uid = task.result?.user?.uid ?: ""
-                    fetchUserData(uid)
-                    startAppointmentsRealtimeListener()
-                    startMechanicsRealtimeListener()
-                } else {
-                    _authState.value = AuthState.ERROR
-                    _errorMessage.value = "Error: ${task.exception?.localizedMessage}"
-                }
-            }
-    }
+        
+        val foundUser = localUsers.find { it.email == email }
+        val correctPass = localPasswords[email]
 
-    private fun fetchUserData(uid: String) {
-        db.collection("users").document(uid).get()
-            .addOnSuccessListener { document ->
-                if (document != null && document.exists()) {
-                    val data = document.data
-                    val userObj = User(
-                        fullName = data?.get("fullname") as? String ?: "",
-                        email = data?.get("email") as? String ?: "",
-                        phone = data?.get("phone") as? String ?: "",
-                        age = data?.get("age") as? String ?: "",
-                        city = data?.get("city") as? String ?: "",
-                        nationality = data?.get("nationality") as? String ?: "",
-                        lastProfileUpdateTime = data?.get("lastProfileUpdateTime") as? Long ?: 0L,
-                        uid = data?.get("uid") as? String ?: "",
-                        role = data?.get("role") as? String ?: "ASESOR"
-                    )
-                    _user.value = userObj
-                    _authState.value = AuthState.SUCCESS
-                } else {
-                    _authState.value = AuthState.SUCCESS
-                }
-            }
-            .addOnFailureListener { e ->
-                _errorMessage.value = e.localizedMessage
-                _authState.value = AuthState.ERROR
-            }
+        if (foundUser != null && correctPass == pass) {
+            _user.value = foundUser
+            _authState.value = AuthState.SUCCESS
+            refreshLocalData()
+        } else {
+            _authState.value = AuthState.ERROR
+            _errorMessage.value = "Email o contraseña incorrectos"
+        }
     }
 
     fun register(name: String, email: String, pass: String) {
@@ -164,110 +150,57 @@ class UserViewModel : ViewModel() {
             _errorMessage.value = "Todos los campos son obligatorios"
             return
         }
+        if (localUsers.any { it.email == email }) {
+            _errorMessage.value = "El usuario ya existe"
+            return
+        }
+
         _authState.value = AuthState.LOADING
-
-        auth.createUserWithEmailAndPassword(email, pass)
-            .addOnCompleteListener { task ->
-                if (task.isSuccessful) {
-                    val uid = task.result?.user?.uid ?: ""
-
-                    val userData = hashMapOf(
-                        "age" to "",
-                        "city" to "",
-                        "email" to email,
-                        "fullname" to name,
-                        "lastProfileUpdateTime" to 0L,
-                        "nationality" to "",
-                        "phone" to "",
-                        "uid" to uid,
-                        "role" to "ASESOR"
-                    )
-
-                    db.collection("users").document(uid)
-                        .set(userData)
-                        .addOnSuccessListener {
-                            _user.value = User(fullName = name, email = email, uid = uid, role = "ASESOR")
-                            _authState.value = AuthState.SUCCESS
-                            startAppointmentsRealtimeListener()
-                            startMechanicsRealtimeListener()
-                        }
-                        .addOnFailureListener { e ->
-                            _errorMessage.value = "Error en base de datos: ${e.localizedMessage}"
-                            _authState.value = AuthState.ERROR
-                        }
-                } else {
-                    _authState.value = AuthState.ERROR
-                    _errorMessage.value = "Error: ${task.exception?.localizedMessage}"
-                }
-            }
+        val newUser = User(fullName = name, email = email, uid = UUID.randomUUID().toString(), role = "ASESOR")
+        localUsers.add(newUser)
+        localPasswords[email] = pass
+        _user.value = newUser
+        _authState.value = AuthState.SUCCESS
     }
 
     fun logout() {
-        appointmentsListener?.remove()
-        mechanicsListener?.remove()
-        auth.signOut()
         _user.value = null
         _appointments.value = emptyList()
         _finishedAppointments.value = emptyList()
         _mechanics.value = emptyList()
+        _passwordChangeHistory.value = emptyList()
         _authState.value = AuthState.IDLE
     }
 
-    fun startAppointmentsRealtimeListener() {
-        appointmentsListener?.remove()
-        appointmentsListener = db.collection("appointments")
-            .addSnapshotListener { snapshot, e ->
-                if (e != null) {
-                    _errorMessage.value = "Error en tiempo real: ${e.localizedMessage}"
-                    return@addSnapshotListener
-                }
-
-                if (snapshot != null) {
-                    val list = snapshot.toObjects(Appointment::class.java)
-                    _appointments.value = list.filter { it.status != "Listo" }
-                    _finishedAppointments.value = list.filter { it.status == "Listo" }
-                }
-            }
-    }
-
-    fun startMechanicsRealtimeListener() {
-        mechanicsListener?.remove()
-        mechanicsListener = db.collection("mechanics")
-            .addSnapshotListener { snapshot, e ->
-                if (snapshot != null) {
-                    _mechanics.value = snapshot.toObjects(Mechanic::class.java)
-                }
-            }
-    }
-
     fun addAppointment(app: Appointment): Boolean {
-        val currentUid = auth.currentUser?.uid ?: return false
+        val currentUid = _user.value?.uid ?: return false
         val finalApp = app.copy(clientId = currentUid)
-
-        db.collection("appointments").document(finalApp.id).set(finalApp)
-            .addOnFailureListener { e ->
-                _errorMessage.value = "Error al crear cita: ${e.localizedMessage}"
-            }
+        localAppointments.add(finalApp)
+        refreshLocalData()
         return true
     }
 
     fun updateAppointmentStatus(id: String, newStatus: String) {
-        db.collection("appointments").document(id).update("status", newStatus)
+        val index = localAppointments.indexOfFirst { it.id == id }
+        if (index != -1) {
+            localAppointments[index] = localAppointments[index].copy(status = newStatus)
+            refreshLocalData()
+        }
     }
 
     fun deleteAppointment(id: String) {
-        db.collection("appointments").document(id).delete()
-            .addOnFailureListener { e ->
-                _errorMessage.value = "Error al eliminar: ${e.localizedMessage}"
-            }
+        localAppointments.removeAll { it.id == id }
+        refreshLocalData()
     }
 
     fun addMechanic(mechanic: Mechanic) {
-        db.collection("mechanics").document(mechanic.id).set(mechanic)
+        localMechanics.add(mechanic)
+        refreshLocalData()
     }
 
     fun deleteMechanic(id: String) {
-        db.collection("mechanics").document(id).delete()
+        localMechanics.removeAll { it.id == id }
+        refreshLocalData()
     }
 
     fun resetAuthState() {
@@ -276,82 +209,49 @@ class UserViewModel : ViewModel() {
     }
 
     fun changePassword(oldPass: String, newPass: String) {
-        val firebaseUser = auth.currentUser ?: return
-        val credential = EmailAuthProvider.getCredential(firebaseUser.email!!, oldPass)
-
-        _authState.value = AuthState.LOADING
-        firebaseUser.reauthenticate(credential).addOnCompleteListener { authTask ->
-            if (authTask.isSuccessful) {
-                firebaseUser.updatePassword(newPass).addOnCompleteListener { updateTask ->
-                    if (updateTask.isSuccessful) {
-                        _authState.value = AuthState.SUCCESS
-                    } else {
-                        _errorMessage.value = updateTask.exception?.localizedMessage
-                        _authState.value = AuthState.ERROR
-                    }
-                }
-            } else {
-                _errorMessage.value = "Contraseña actual incorrecta"
-                _authState.value = AuthState.ERROR
-            }
+        val currentUser = _user.value ?: return
+        if (localPasswords[currentUser.email] == oldPass) {
+            localPasswords[currentUser.email] = newPass
+            
+            val dateFormat = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+            val dateString = dateFormat.format(Date())
+            val log = PasswordChangeLog(dateString)
+            
+            val history = localPasswordHistory.getOrPut(currentUser.email) { mutableListOf() }
+            history.add(0, log) // Agregar al inicio (más reciente)
+            
+            _authState.value = AuthState.SUCCESS
+            refreshLocalData()
+        } else {
+            _errorMessage.value = "Contraseña actual incorrecta"
+            _authState.value = AuthState.ERROR
         }
     }
 
     fun updateUserInfo(phone: String, age: String, city: String, nationality: String, fullName: String) {
-        val currentUid = auth.currentUser?.uid ?: return
-        val updateTime = System.currentTimeMillis()
-
-        val updatedData = mapOf(
-            "phone" to phone,
-            "age" to age,
-            "city" to city,
-            "nationality" to nationality,
-            "fullname" to fullName,
-            "lastProfileUpdateTime" to updateTime
-        )
-
-        _authState.value = AuthState.LOADING
-        db.collection("users").document(currentUid).update(updatedData)
-            .addOnSuccessListener {
-                _user.value = _user.value?.copy(
-                    phone = phone,
-                    age = age,
-                    city = city,
-                    nationality = nationality,
-                    fullName = fullName,
-                    lastProfileUpdateTime = updateTime
-                )
-                _authState.value = AuthState.SUCCESS
-                _errorMessage.value = "Perfil actualizado con éxito"
-            }
-            .addOnFailureListener { e ->
-                _errorMessage.value = "Error: ${e.localizedMessage}"
-                _authState.value = AuthState.ERROR
-            }
+        val currentUser = _user.value ?: return
+        val index = localUsers.indexOfFirst { it.uid == currentUser.uid }
+        if (index != -1) {
+            val updatedUser = localUsers[index].copy(
+                phone = phone,
+                age = age,
+                city = city,
+                nationality = nationality,
+                fullName = fullName,
+                lastProfileUpdateTime = System.currentTimeMillis()
+            )
+            localUsers[index] = updatedUser
+            _user.value = updatedUser
+            _authState.value = AuthState.SUCCESS
+            _errorMessage.value = "Perfil actualizado localmente"
+        }
     }
 
     fun deleteUserAccount() {
-        val currentUid = auth.currentUser?.uid ?: return
-        
-        db.collection("users").document(currentUid).delete()
-            .addOnSuccessListener {
-                auth.currentUser?.delete()
-                    ?.addOnCompleteListener { task ->
-                        if (task.isSuccessful) {
-                            logout()
-                        } else {
-                            _errorMessage.value = "Error al borrar cuenta: ${task.exception?.localizedMessage}"
-                        }
-                    }
-            }
-            .addOnFailureListener { e ->
-                _errorMessage.value = "Error al borrar datos: ${e.localizedMessage}"
-            }
-    }
-
-    override fun onCleared() {
-        super.onCleared()
-        appointmentsListener?.remove()
-        mechanicsListener?.remove()
+        val currentUser = _user.value ?: return
+        localUsers.removeAll { it.uid == currentUser.uid }
+        localPasswords.remove(currentUser.email)
+        localPasswordHistory.remove(currentUser.email)
+        logout()
     }
 }

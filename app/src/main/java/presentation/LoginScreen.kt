@@ -9,6 +9,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -34,7 +36,6 @@ fun LoginScreen(navController: NavController, userViewModel: UserViewModel) {
     val authState by userViewModel.authState.collectAsState()
     val errorMessage by userViewModel.errorMessage.collectAsState()
 
-    // Restauración de la lógica de redirección
     LaunchedEffect(authState) {
         if (authState == AuthState.SUCCESS) {
             navController.navigate("main_route") {
@@ -57,30 +58,29 @@ fun LoginScreen(navController: NavController, userViewModel: UserViewModel) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // Logo PIT-LANE con icono de carro
-            Icon(
-                imageVector = Icons.Default.DirectionsCar,
-                contentDescription = null,
-                tint = AppRed,
-                modifier = Modifier.size(80.dp)
-            )
+            // TÍTULO PIT-LANE (REEMPLAZA AL LOGO)
             Text(
                 text = "PIT-LANE",
-                fontSize = 42.sp,
-                fontWeight = FontWeight.Black,
+                fontSize = 48.sp,
                 color = AppRed,
-                letterSpacing = 2.sp
+                fontWeight = FontWeight.Black, // Ultra negrita para impacto
+                letterSpacing = (-1).sp
             )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // SUBTÍTULO MANTENIDO
             Text(
                 text = "CARS & SERVICES",
-                fontSize = 12.sp,
+                fontSize = 14.sp,
                 color = Color.White.copy(alpha = 0.7f),
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 2.sp
             )
 
             Spacer(modifier = Modifier.height(48.dp))
 
-            // Campo de Email restaurado
+            // Campo de Email
             OutlinedTextField(
                 value = email,
                 onValueChange = { email = it },
@@ -100,7 +100,7 @@ fun LoginScreen(navController: NavController, userViewModel: UserViewModel) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Campo de Contraseña restaurado
+            // Campo de Contraseña
             OutlinedTextField(
                 value = password,
                 onValueChange = { password = it },
@@ -128,7 +128,6 @@ fun LoginScreen(navController: NavController, userViewModel: UserViewModel) {
                 singleLine = true
             )
 
-            // Olvido de contraseña
             TextButton(
                 onClick = { navController.navigate("recover_password_route") },
                 modifier = Modifier.align(Alignment.End)
@@ -138,7 +137,6 @@ fun LoginScreen(navController: NavController, userViewModel: UserViewModel) {
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Botón de Acción Principal
             if (authState == AuthState.LOADING) {
                 CircularProgressIndicator(color = AppRed)
             } else {
@@ -154,7 +152,6 @@ fun LoginScreen(navController: NavController, userViewModel: UserViewModel) {
                 }
             }
 
-            // Mensaje de Error dinámico
             errorMessage?.let {
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(it, color = AppRed, fontSize = 14.sp, fontWeight = FontWeight.Medium)
@@ -162,7 +159,6 @@ fun LoginScreen(navController: NavController, userViewModel: UserViewModel) {
 
             Spacer(modifier = Modifier.height(40.dp))
 
-            // Registro de cuenta nueva
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("¿Nuevo en PIT-LANE?", color = Color.White)
                 TextButton(onClick = { navController.navigate("register_route") }) {
