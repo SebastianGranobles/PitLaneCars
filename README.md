@@ -5,3 +5,4 @@ Kotlin
 Android studio
 <img width="2832" height="3460" alt="diagram" src="https://github.com/user-attachments/assets/ebc67d8b-937f-4bf3-9166-fbd4aa6964bd" />
 
+.
